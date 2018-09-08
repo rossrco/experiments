@@ -7,6 +7,7 @@ auth = tweepy.OAuthHandler(twitter_credentials['api_key'], twitter_credentials['
 auth.set_access_token(twitter_credentials['access_token'], twitter_credentials['access_token_secret'])
 
 api = tweepy.API(auth)
-public_tweets = api.home_timeline()
-for tweet in public_tweets:
-    print(tweet.text)
+
+#user timeline can be used to mine data from specific users
+for tweet in api.user_timeline(screen_name = 'DanskeBank_UK', count = 1000):
+    print(tweet.id)

@@ -1,2 +1,3 @@
 __pycache__/
 *.pyc
+/machine_learning_combinatorics/.ipynb_checkpoints
