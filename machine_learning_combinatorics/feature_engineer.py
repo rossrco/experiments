@@ -3,16 +3,17 @@ from collections import deque
 from operator import add, mul, sub, truediv
 
 class FeatureEngineer:
-    def __init__(self, splitter, model, scorer, operators = {'add' : add, 'mul' : mul, 'sub' : sub, 'div' : truediv}):
+    def __init__(self, splitter, model, scorer, operators = {'add' : add, 'mul' : mul, 'sub' : sub, 'div' : truediv}, n_best = 5):
         self.operators = operators
         self.splitter = splitter
         self.model = model
         self.scorer = scorer
+        self.n_best = n_best
 
     def fit_transform(self, df, y):
         columns = df.columns
         best_score = 0
-        best_cols = []
+        best_cols = deque(maxlen = self.n_best)
         for c1 in columns:
             for c2 in columns:
                 if c1 != c2:
