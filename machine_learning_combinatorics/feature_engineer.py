@@ -23,7 +23,7 @@ class FeatureEngineer:
                         res_train, res_test, y_train, y_test = self.splitter(res, y, test_size = 0.3, random_state = 42)
                         self.model.fit(res_train, y_train)
                         y_pred = self.model.predict(res_test)
-                        y_pred_proba = self.model.predict_proba(res_test)
+                        #y_pred_proba = self.model.predict_proba(res_test)
                         current_score = self.scorer(y_test, y_pred, average = 'weighted')
                         if current_score > best_score:
                             best_score = current_score
