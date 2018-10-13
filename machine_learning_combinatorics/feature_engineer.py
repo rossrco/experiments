@@ -3,7 +3,7 @@ from collections import deque
 from operator import add, mul, sub, truediv
 
 class FeatureEngineer:
-    def __init__(self, splitter, model, scorer, operators = {'add' : add, 'mul' : mul, 'sub' : sub, 'div' : truediv}, n_best = 5):
+    def __init__(self, splitter, model, scorer, operators = [add, mul, sub, truediv], n_best = 5):
         self.operators = operators
         self.splitter = splitter
         self.model = model
@@ -17,8 +17,8 @@ class FeatureEngineer:
         for c1 in columns:
             for c2 in columns:
                 if c1 != c2:
-                    for o_n, o in self.operators.items():
-                        colname = '%s_%s_%s' % (c1, o_n, c2)
+                    for o in self.operators:
+                        colname = '%s_%s_%s' % (c1, o.__name__, c2)
                         res = pd.DataFrame(o(df[c1], df[c2]), columns = [colname])
                         res_train, res_test, y_train, y_test = self.splitter(res, y, test_size = 0.3, random_state = 42)
                         self.model.fit(res_train, y_train)
