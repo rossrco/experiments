@@ -28,7 +28,17 @@ def apply_feature(df, feature, replace_inf):
     res[isneginf(res)] = replace_inf
     return res
 
-def derive_feature_combinations(df, y, operators, best_columns, model, scorer, n_best, replace_inf):
+def get_current_score(x, y, model, scorer, predict_proba):
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.3, random_state = 42)
+    model.fit(x_train, y_train)
+    if predict_proba:
+        y_pred = model.predict_proba(x_test)
+    else:
+        y_pred = model.predict(x_test)
+    current_score = scorer(y_test, y_pred, average = 'weighted')
+    return current_score
+
+def derive_feature_combinations(df, y, operators, best_columns, model, scorer, n_best, replace_inf, predict_proba):
     columns = df.columns
 
     for c1 in columns:
@@ -37,16 +47,12 @@ def derive_feature_combinations(df, y, operators, best_columns, model, scorer, n
                 for o in operators:
                     feature = compose_feature(o, c1, c2)
                     res = apply_feature(df, feature, replace_inf)
-                    res_train, res_test, y_train, y_test = train_test_split(res, y, test_size = 0.3, random_state = 42)
-                    model.fit(res_train, y_train)
-                    y_pred = model.predict(res_test)
-                    #y_pred_proba = self.model.predict_proba(res_test)
-                    current_score = scorer(y_test, y_pred, average = 'weighted')
+                    current_score = get_current_score(res, y, model, scorer, predict_proba)
                     best_columns = update_n_best(best_columns, n_best, current_score, feature)
     return best_columns
 
 class FeatureEngineer:
-    def __init__(self, model, scorer, functions = [add, mul, sub, truediv, max, min], n_best = 5, replace_inf = 0):
+    def __init__(self, model, scorer, functions = [add, mul, sub, truediv, max, min], n_best = 5, replace_inf = 0, predict_proba  = False):
         self.extrema = [i for i in functions if i in (max, min)]
         if self.extrema:
             for o, i in enumerate(self.extrema):
@@ -56,6 +62,7 @@ class FeatureEngineer:
         self.scorer = scorer
         self.n_best = min(n_best, 1000)
         self.replace_inf = replace_inf
+        self.predict_proba = predict_proba
         self.best_columns = {}
 
     def fit(self, df, y):
@@ -84,7 +91,7 @@ class FeatureEngineer:
 
         self.best_columns = derive_feature_combinations(df, y, self.operators,
         self.best_columns, self.model, self.scorer, self.n_best,
-        self.replace_inf)
+        self.replace_inf, self.predict_proba)
 
     def transform(self, df):
         for k, trans in self.best_columns.items():
