@@ -11,6 +11,23 @@ def update_n_best(best_columns, n_best, current_score, transformation):
         best_columns.pop(worst_score)
     return best_columns
 
+def compose_extremum_feature():
+    pass
+
+def compose_feature(operator, column1, column2):
+    feature = {}
+    feature['transformation_function'] = lambda x1, x2: operator(x1, x2)
+    feature['column_name'] = '%s_%s_%s' % (column1, operator.__name__, column2)
+    feature['x1'] = column1
+    feature['x2'] = column2
+    return feature
+
+def apply_feature(df, feature, replace_inf):
+    res = feature['transformation_function'](df[feature['x1']], df[feature['x2']]).reshape(-1, 1)
+    res[isinf(res)] = replace_inf
+    res[isneginf(res)] = replace_inf
+    return res
+
 def derive_feature_combinations(df, y, operators, best_columns, model, scorer, n_best, replace_inf):
     columns = df.columns
 
@@ -18,23 +35,14 @@ def derive_feature_combinations(df, y, operators, best_columns, model, scorer, n
         for c2 in columns:
             if c1 != c2:
                 for o in operators:
-                    transformation_function = lambda x1, x2: o(x1, x2)
-                    column_name = '%s_%s_%s' % (c1, o.__name__, c2)
-                    transformation = {
-                    'transformation_function' : transformation_function,
-                    'x1' : c1,
-                    'x2' : c2,
-                    'column_name' : column_name
-                    }
-                    res = o(df[c1], df[c2]).reshape(-1, 1)
-                    res[isinf(res)] = replace_inf
-                    res[isneginf(res)] = replace_inf
+                    feature = compose_feature(o, c1, c2)
+                    res = apply_feature(df, feature, replace_inf)
                     res_train, res_test, y_train, y_test = train_test_split(res, y, test_size = 0.3, random_state = 42)
                     model.fit(res_train, y_train)
                     y_pred = model.predict(res_test)
                     #y_pred_proba = self.model.predict_proba(res_test)
                     current_score = scorer(y_test, y_pred, average = 'weighted')
-                    best_columns = update_n_best(best_columns, n_best, current_score, transformation)
+                    best_columns = update_n_best(best_columns, n_best, current_score, feature)
     return best_columns
 
 class FeatureEngineer:
