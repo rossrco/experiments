@@ -1,5 +1,4 @@
 from operator import add, mul, sub, truediv
-from sklearn.model_selection import train_test_split
 from numpy import isnan, isinf, isneginf
 
 def update_n_best(best_columns, n_best, current_score, transformation):
@@ -23,22 +22,33 @@ def compose_feature(operator, column1, column2):
     return feature
 
 def apply_feature(df, feature, replace_inf):
-    res = feature['transformation_function'](df[feature['x1']], df[feature['x2']]).reshape(-1, 1)
+    res = feature['transformation_function'](df[feature['x1']], df[feature['x2']]).values.reshape(-1, 1)
     res[isinf(res)] = replace_inf
     res[isneginf(res)] = replace_inf
     return res
 
-def get_current_score(x, y, model, scorer, predict_proba):
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.3, random_state = 42)
+def get_current_score(x, y, model, scorer, splitter, predict_proba,
+scorer_kwargs = None, splitter_kwargs = None):
+    if splitter_kwargs:
+        x_train, x_test, y_train, y_test = splitter(x, y, **splitter_kwargs)
+    else:
+        x_train, x_test, y_train, y_test = splitter(x, y)
+
     model.fit(x_train, y_train)
     if predict_proba:
-        y_pred = model.predict_proba(x_test)
+        y_pred = model.predict_proba(x_test)[:, 1]
     else:
         y_pred = model.predict(x_test)
-    current_score = scorer(y_test, y_pred, average = 'weighted')
+
+    if scorer_kwargs:
+        current_score = scorer(y_test, y_pred, **scorer_kwargs)
+    else:
+        current_score = scorer(y_test, y_pred)
     return current_score
 
-def derive_feature_combinations(df, y, operators, best_columns, model, scorer, n_best, replace_inf, predict_proba):
+def derive_feature_combinations(df, y, operators, best_columns, model, scorer,
+splitter, n_best, replace_inf, predict_proba, scorer_kwargs = None,
+splitter_kwargs = None):
     columns = df.columns
 
     for c1 in columns:
@@ -47,12 +57,15 @@ def derive_feature_combinations(df, y, operators, best_columns, model, scorer, n
                 for o in operators:
                     feature = compose_feature(o, c1, c2)
                     res = apply_feature(df, feature, replace_inf)
-                    current_score = get_current_score(res, y, model, scorer, predict_proba)
+                    current_score = get_current_score(res, y, model, scorer, splitter, predict_proba, scorer_kwargs, splitter_kwargs)
                     best_columns = update_n_best(best_columns, n_best, current_score, feature)
     return best_columns
 
 class FeatureEngineer:
-    def __init__(self, model, scorer, functions = [add, mul, sub, truediv, max, min], n_best = 5, replace_inf = 0, predict_proba  = False):
+    def __init__(self, model, scorer, splitter, functions = [add, mul, sub, truediv, max, min],
+    n_best = 5, replace_inf = 0, predict_proba  = False, scorer_kwargs = None,
+    splitter_kwargs = None):
+        #set initial data and keyword arguments for scorer model
         self.extrema = [i for i in functions if i in (max, min)]
         if self.extrema:
             for o, i in enumerate(self.extrema):
@@ -60,9 +73,12 @@ class FeatureEngineer:
         self.operators = functions
         self.model = model
         self.scorer = scorer
+        self.splitter = splitter
         self.n_best = min(n_best, 1000)
         self.replace_inf = replace_inf
         self.predict_proba = predict_proba
+        self.scorer_kwargs = scorer_kwargs
+        self.splitter_kwargs = splitter_kwargs
         self.best_columns = {}
 
     def fit(self, df, y):
@@ -90,8 +106,8 @@ class FeatureEngineer:
         #                    self.best_columns = update_n_best(self.best_columns, self.n_best, current_score, transformation)
 
         self.best_columns = derive_feature_combinations(df, y, self.operators,
-        self.best_columns, self.model, self.scorer, self.n_best,
-        self.replace_inf, self.predict_proba)
+        self.best_columns, self.model, self.scorer, self.splitter, self.n_best,
+        self.replace_inf, self.predict_proba, self.scorer_kwargs, self.splitter_kwargs)
 
     def transform(self, df):
         for k, trans in self.best_columns.items():
