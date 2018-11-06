@@ -1,5 +1,6 @@
 from operator import add, mul, sub, truediv
 from numpy import isnan, isinf, isneginf
+from collections import defaultdict
 
 def update_n_best(best_columns, n_best, current_score, transformation):
     worst_score = 0
@@ -10,8 +11,14 @@ def update_n_best(best_columns, n_best, current_score, transformation):
         best_columns.pop(worst_score)
     return best_columns
 
-def compose_extremum_feature():
-    pass
+def find_aggregates(df, aggregates):
+    aggregates_values = defaultdict(dict)
+
+    for column in df.columns:
+        for aggregate in aggregates:
+            aggregates_values[column][aggregate.__name__] = aggregate(df[column])
+
+    return aggregates_values
 
 def compose_feature(operator, column1, column2):
     feature = {}
@@ -21,10 +28,10 @@ def compose_feature(operator, column1, column2):
     feature['x2'] = column2
     return feature
 
-def compose_extremum_feature(operator, extremum, column1, column2):
+def compose_aggregate_feature(operator, aggregate, column1, column2):
     feature = {}
-    feature['transformation_function'] = lambda x1, x2: operator(extremum(x1), x2)
-    feature['column_name'] = '%s_(%s)_%s_%s' % (extremum.__name__, column1, operator.__name__, column2)
+    feature['transformation_function'] = lambda x1, x2: operator(aggregate(x1), x2)
+    feature['column_name'] = '%s_(%s)_%s_%s' % (aggregate.__name__, column1, operator.__name__, column2)
     feature['x1'] = column1
     feature['x2'] = column2
     return feature
@@ -70,16 +77,16 @@ splitter_kwargs = None):
                     best_columns = update_n_best(best_columns, n_best, current_score, feature)
     return best_columns
 
-def derive_extrema_feature_combinations(df, y, operators, extrema, best_columns,
-model, scorer, splitter, n_best, replace_inf, predict_proba, scorer_kwargs = None,
-splitter_kwargs = None):
+def derive_aggregates_feature_combinations(df, y, operators, aggregates, aggregates_values,
+best_columns, model, scorer, splitter, n_best, replace_inf, predict_proba,
+scorer_kwargs = None, splitter_kwargs = None):
     columns = df.columns
 
-    for e in extrema:
+    for e in aggregates:
         for c1 in columns:
             for c2 in columns:
                     for o in operators:
-                        feature = compose_extremum_feature(o, e, c1, c2)
+                        feature = compose_aggregate_feature(o, e, c1, c2)
                         res = apply_feature(df, feature, replace_inf)
                         current_score = get_current_score(res, y, model, scorer, splitter, predict_proba, scorer_kwargs, splitter_kwargs)
                         best_columns = update_n_best(best_columns, n_best, current_score, feature)
@@ -89,9 +96,9 @@ class FeatureEngineer:
     def __init__(self, model, scorer, splitter, functions = [add, mul, sub, truediv, max, min],
     n_best = 5, replace_inf = 0, predict_proba  = False, scorer_kwargs = None,
     splitter_kwargs = None):
-        self.extrema = [i for i in functions if i in (max, min)]
-        if self.extrema:
-            for o, i in enumerate(self.extrema):
+        self.aggregates = [i for i in functions if i in (max, min)]
+        if self.aggregates:
+            for o, i in enumerate(self.aggregates):
                 functions.remove(i)
         self.operators = functions
         self.model = model
@@ -102,15 +109,17 @@ class FeatureEngineer:
         self.predict_proba = predict_proba
         self.scorer_kwargs = scorer_kwargs
         self.splitter_kwargs = splitter_kwargs
+        self.aggregates_values = {}
         self.best_columns = {}
 
     def fit(self, df, y):
+        self.aggregates_values = find_aggregates(df, self.aggregates)
         columns = df.columns
 
-        if self.extrema:
-            self.best_columns = derive_extrema_feature_combinations(df, y,
-            self.operators, self.extrema, self.best_columns, self.model,
-            self.scorer, self.splitter, self.n_best, self.replace_inf,
+        if self.aggregates:
+            self.best_columns = derive_aggregates_feature_combinations(df, y,
+            self.operators, self.aggregates, self.aggregates_values, self.best_columns,
+            self.model, self.scorer, self.splitter, self.n_best, self.replace_inf,
             self.predict_proba, self.scorer_kwargs, self.splitter_kwargs)
 
         self.best_columns = derive_feature_combinations(df, y, self.operators,
