@@ -11,15 +11,6 @@ def update_n_best(best_columns, n_best, current_score, transformation):
         best_columns.pop(worst_score)
     return best_columns
 
-def find_aggregates(df, aggregates):
-    aggregates_values = defaultdict(dict)
-
-    for column in df.columns:
-        for aggregate in aggregates:
-            aggregates_values[column][aggregate.__name__] = aggregate(df[column])
-
-    return aggregates_values
-
 def compose_feature(operator, column1, column2):
     feature = {}
     feature['transformation_function'] = lambda x1, x2: operator(x1, x2)
@@ -113,7 +104,6 @@ class FeatureEngineer:
         self.best_columns = {}
 
     def fit(self, df, y):
-        self.aggregates_values = find_aggregates(df, self.aggregates)
         columns = df.columns
 
         if self.aggregates:
