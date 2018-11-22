@@ -104,7 +104,6 @@ class FeatureEngineer:
         self.best_columns = {}
 
     def fit(self, df, y):
-        columns = df.columns
 
         if self.aggregates:
             self.best_columns = derive_aggregates_feature_combinations(df, y,
