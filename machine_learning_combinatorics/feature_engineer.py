@@ -51,7 +51,7 @@ def define_operator_generator(aggregates = None):
                 for c2 in columns:
                     if c1 != c2:
                         for o in operators:
-                            yield {'c1' : c1, 'c2' : c2, 'o' : o}
+                            yield {'a' : None, 'c1' : c1, 'c2' : c2, 'o' : o}
 
     return feature_item_generator
 
