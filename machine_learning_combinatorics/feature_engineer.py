@@ -11,22 +11,6 @@ def update_n_best(best_columns, n_best, current_score, transformation):
         best_columns.pop(worst_score)
     return best_columns
 
-def compose_feature(operator, column1, column2):
-    feature = {}
-    feature['transformation_function'] = lambda x1, x2: operator(x1, x2)
-    feature['column_name'] = '%s_%s_%s' % (column1, operator.__name__, column2)
-    feature['x1'] = column1
-    feature['x2'] = column2
-    return feature
-
-def compose_aggregate_feature(operator, aggregate, column1, column2):
-    feature = {}
-    feature['transformation_function'] = lambda x1, x2: operator(aggregate(x1), x2)
-    feature['column_name'] = '%s_(%s)_%s_%s' % (aggregate.__name__, column1, operator.__name__, column2)
-    feature['x1'] = column1
-    feature['x2'] = column2
-    return feature
-
 def apply_feature(df, feature, replace_inf):
     res = feature['transformation_function'](df[feature['x1']], df[feature['x2']]).values.reshape(-1, 1)
     res[isinf(res)] = replace_inf
@@ -53,8 +37,8 @@ scorer_kwargs = None, splitter_kwargs = None):
         current_score = scorer(y_test, y_pred)
     return current_score
 
-def define_operator_generator(gen_type):
-    if gen_type == 'agg':
+def define_operator_generator(aggregate_flag):
+    if aggregate_flag == True:
         def feature_item_generator(columns, operators, aggregates):
             for a in aggregates:
                 for c1 in columns:
@@ -71,8 +55,8 @@ def define_operator_generator(gen_type):
 
     return feature_item_generator
 
-def define_feature_composer(gen_type):
-    if gen_type == 'agg':
+def define_feature_composer(aggregate_flag):
+    if aggregate_flag == True:
         def feature_composer(feature_properties):
             column1 = feature_properties['c1']
             column2 = feature_properties['c2']
@@ -98,7 +82,7 @@ def define_feature_composer(gen_type):
     return feature_composer
 
 def derive_feature_combinations(df, y, operators, best_columns, model, scorer,
-splitter, n_best, replace_inf, predict_proba, gen_type, aggregates = None,
+splitter, n_best, replace_inf, predict_proba, gen_type = False, aggregates = None,
 scorer_kwargs = None, splitter_kwargs = None):
     generate_items = define_operator_generator(gen_type)
     compose_feature = define_feature_composer(gen_type)
@@ -133,14 +117,15 @@ class FeatureEngineer:
     def fit(self, df, y):
 
         if self.aggregates:
-            self.best_columns = derive_feature_combinations(df, y,
-            self.operators, self.aggregates_values, self.best_columns,
-            self.model, self.scorer, self.splitter, self.n_best, self.replace_inf,
-            self.predict_proba, 'agg', self.aggregates, self.scorer_kwargs, self.splitter_kwargs)
+            self.best_columns = derive_feature_combinations(df, y, self.operators,
+            self.best_columns, self.model, self.scorer, self.splitter, self.n_best,
+            self.replace_inf, self.predict_proba, True, self.aggregates,
+            self.scorer_kwargs, self.splitter_kwargs)
 
         self.best_columns = derive_feature_combinations(df, y, self.operators,
         self.best_columns, self.model, self.scorer, self.splitter, self.n_best,
-        self.replace_inf, self.predict_proba, self.scorer_kwargs, self.splitter_kwargs)
+        self.replace_inf, self.predict_proba, False, None, self.scorer_kwargs,
+        self.splitter_kwargs)
 
     def transform(self, df):
         for k, trans in self.best_columns.items():
