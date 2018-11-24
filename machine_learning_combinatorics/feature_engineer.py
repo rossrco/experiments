@@ -37,8 +37,8 @@ scorer_kwargs = None, splitter_kwargs = None):
         current_score = scorer(y_test, y_pred)
     return current_score
 
-def define_operator_generator(aggregate_flag):
-    if aggregate_flag == True:
+def define_operator_generator(aggregates = None):
+    if aggregates:
         def feature_item_generator(columns, operators, aggregates):
             for a in aggregates:
                 for c1 in columns:
@@ -55,8 +55,8 @@ def define_operator_generator(aggregate_flag):
 
     return feature_item_generator
 
-def define_feature_composer(aggregate_flag):
-    if aggregate_flag == True:
+def define_feature_composer(aggregates = None):
+    if aggregates:
         def feature_composer(feature_properties):
             column1 = feature_properties['c1']
             column2 = feature_properties['c2']
@@ -82,10 +82,10 @@ def define_feature_composer(aggregate_flag):
     return feature_composer
 
 def derive_feature_combinations(df, y, operators, best_columns, model, scorer,
-splitter, n_best, replace_inf, predict_proba, gen_type = False, aggregates = None,
+splitter, n_best, replace_inf, predict_proba, aggregates = None,
 scorer_kwargs = None, splitter_kwargs = None):
-    generate_items = define_operator_generator(gen_type)
-    compose_feature = define_feature_composer(gen_type)
+    generate_items = define_operator_generator(aggregates)
+    compose_feature = define_feature_composer(aggregates)
     columns = df.columns
 
     for property in generate_items(columns, operators, aggregates):
@@ -119,12 +119,12 @@ class FeatureEngineer:
         if self.aggregates:
             self.best_columns = derive_feature_combinations(df, y, self.operators,
             self.best_columns, self.model, self.scorer, self.splitter, self.n_best,
-            self.replace_inf, self.predict_proba, True, self.aggregates,
+            self.replace_inf, self.predict_proba, self.aggregates,
             self.scorer_kwargs, self.splitter_kwargs)
 
         self.best_columns = derive_feature_combinations(df, y, self.operators,
         self.best_columns, self.model, self.scorer, self.splitter, self.n_best,
-        self.replace_inf, self.predict_proba, False, None, self.scorer_kwargs,
+        self.replace_inf, self.predict_proba, None, self.scorer_kwargs,
         self.splitter_kwargs)
 
     def transform(self, df):
