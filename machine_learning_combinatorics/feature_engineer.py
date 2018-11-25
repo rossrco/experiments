@@ -167,16 +167,12 @@ class FeatureEngineer:
         Does:
         Returns:
         """
-        if self.aggregates:
+
+        for aggregates in (self.aggregates, None):
             self.best_columns = derive_feature_combinations(df, y, self.operators,
             self.best_columns, self.model, self.scorer, self.splitter, self.n_best,
-            self.replace_inf, self.predict_proba, self.aggregates,
+            self.replace_inf, self.predict_proba, aggregates,
             self.scorer_kwargs, self.splitter_kwargs)
-
-        self.best_columns = derive_feature_combinations(df, y, self.operators,
-        self.best_columns, self.model, self.scorer, self.splitter, self.n_best,
-        self.replace_inf, self.predict_proba, None, self.scorer_kwargs,
-        self.splitter_kwargs)
 
     def transform(self, df):
         """
