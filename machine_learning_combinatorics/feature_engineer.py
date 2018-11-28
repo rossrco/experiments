@@ -142,6 +142,20 @@ aggregates, aggregate_mode, scorer_kwargs = None, splitter_kwargs = None):
 
     return best_columns
 
+class Feature:
+    def __init__(self, x1, x2, function, name):
+        self.x1 = x1
+        self.x2 = x2
+        self.function = function
+        self.__name__ = name
+
+    def apply_feature(self, df, replace_pos_inf, replace_neg_inf, replace_nan):
+        res = self.function(df[self.x1], df[self.x2]).values.reshape(-1, 1)
+        res[isinf(res)] = replace_pos_inf
+        res[isneginf(res)] = replace_neg_inf
+        res[isnan(res)] = replace_nan
+        return res
+
 class FeatureEngineer:
     def __init__(self, model, scorer, splitter, operators = [add, mul, sub, truediv],
     aggregates = [], aggregate_mode = False, n_best = 5, replace_pos_inf = 10e20,
