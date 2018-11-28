@@ -19,19 +19,6 @@ def update_n_best(best_columns, n_best, current_score, feature):
         best_columns.pop(worst_score)
     return best_columns
 
-def apply_feature(df, feature, replace_pos_inf, replace_neg_inf, replace_nan):
-    """
-    Takes: dataframe, feature dictionary value to replace inf with
-    Does: uses the columns from the dataframe required by the feature. Produces
-    a new feature based on the transformation function.
-    Returns: numpy array representing the values of the new feature.
-    """
-    res = feature['transformation_function'](df[feature['x1']], df[feature['x2']]).values.reshape(-1, 1)
-    res[isinf(res)] = replace_pos_inf
-    res[isneginf(res)] = replace_neg_inf
-    res[isnan(res)] = replace_nan
-    return res
-
 def get_current_score(x, y, model, scorer, splitter, predict_proba,
 scorer_kwargs = None, splitter_kwargs = None):
     """
@@ -49,6 +36,7 @@ scorer_kwargs = None, splitter_kwargs = None):
         x_train, x_test, y_train, y_test = splitter(x, y)
 
     model.fit(x_train, y_train)
+
     if predict_proba:
         y_pred = model.predict_proba(x_test)[:, 1]
     else:
@@ -62,7 +50,7 @@ scorer_kwargs = None, splitter_kwargs = None):
 
 def define_operator_generator(aggregate_mode):
     """
-    Takes: aggregate operators list.
+    Takes: aggregate mode flag.
     Does: creates a generator of iterables to be used in a feature. An aggregate
     feature is of the form in prefix notation: operator(aggregate(x1), x2).
     Example: max(x1) / x2. To achieve that, the function iterates over all
@@ -78,17 +66,17 @@ def define_operator_generator(aggregate_mode):
     if aggregate_mode:
         def feature_item_generator(columns, operators, aggregates):
             for a in aggregates:
-                for c1 in columns:
-                    for c2 in columns:
+                for column1 in columns:
+                    for column2 in columns:
                             for o in operators:
-                                yield {'a' : a, 'c1' : c1, 'c2' : c2, 'o' : o}
+                                yield {'a' : a, 'x1' : column1, 'x2' : column2, 'o' : o}
     else:
         def feature_item_generator(columns, operators, aggregates):
-            for c1 in columns:
-                for c2 in columns:
-                    if c1 != c2:
+            for column1 in columns:
+                for column2 in columns:
+                    if column1 != column2:
                         for o in operators:
-                            yield {'a' : None, 'c1' : c1, 'c2' : c2, 'o' : o}
+                            yield {'a' : None, 'x1' : column1, 'x2' : column2, 'o' : o}
     return feature_item_generator
 
 def define_feature_composer(aggregate_mode):
@@ -98,31 +86,29 @@ def define_feature_composer(aggregate_mode):
     Returns:
     """
     if aggregate_mode:
-        def feature_composer(feature_properties):
-            column1 = feature_properties['c1']
-            column2 = feature_properties['c2']
-            operator = feature_properties['o']
-            aggregate = feature_properties['a']
-            feature = {}
-            feature['transformation_function'] = lambda x1, x2: operator(aggregate(x1), x2)
-            feature['column_name'] = '%s_(%s)_%s_%s' % (aggregate.__name__, column1, operator.__name__, column2)
-            feature['x1'] = column1
-            feature['x2'] = column2
+        def feature_composer(properties):
+            x1 = properties['x1']
+            x2 = properties['x2']
+            operator = properties['o']
+            aggregate = properties['a']
+            function = lambda x1, x2: operator(aggregate(x1), x2)
+            name = '%s_(%s)_%s_%s' % (aggregate.__name__, x1, operator.__name__, x2)
+
+            feature = Feature(x1, x2, function, name)
             return feature
     else:
-        def feature_composer(feature_properties):
-            column1 = feature_properties['c1']
-            column2 = feature_properties['c2']
-            operator = feature_properties['o']
-            feature = {}
-            feature['transformation_function'] = lambda x1, x2: operator(x1, x2)
-            feature['column_name'] = '%s_%s_%s' % (column1, operator.__name__, column2)
-            feature['x1'] = column1
-            feature['x2'] = column2
+        def feature_composer(properties):
+            x1 = properties['x1']
+            x2 = properties['x2']
+            operator = properties['o']
+            function = lambda x1, x2: operator(x1, x2)
+            name = '%s_%s_%s' % (x1, operator.__name__, x2)
+
+            feature = Feature(x1, x2, function, name)
             return feature
     return feature_composer
 
-def derive_feature_combinations(df, y, operators, best_columns, model, scorer,
+def derive_feature_combinations(df, y, operators, model, scorer,
 splitter, n_best, replace_pos_inf, replace_neg_inf, replace_nan, predict_proba,
 aggregates, aggregate_mode, scorer_kwargs = None, splitter_kwargs = None):
     """
@@ -133,10 +119,11 @@ aggregates, aggregate_mode, scorer_kwargs = None, splitter_kwargs = None):
     generate_items = define_operator_generator(aggregate_mode)
     compose_feature = define_feature_composer(aggregate_mode)
     columns = df.columns
+    best_columns = {}
 
-    for property in generate_items(columns, operators, aggregates):
-        feature = compose_feature(property)
-        res = apply_feature(df, feature, replace_pos_inf, replace_neg_inf, replace_nan)
+    for properties in generate_items(columns, operators, aggregates):
+        feature = compose_feature(properties)
+        res = feature.apply_feature(df, replace_pos_inf, replace_neg_inf, replace_nan)
         current_score = get_current_score(res, y, model, scorer, splitter, predict_proba, scorer_kwargs, splitter_kwargs)
         best_columns = update_n_best(best_columns, n_best, current_score, feature)
 
@@ -184,7 +171,7 @@ class FeatureEngineer:
         Returns:
         """
         self.best_columns = derive_feature_combinations(df, y, self.operators,
-        self.best_columns, self.model, self.scorer, self.splitter, self.n_best,
+        self.model, self.scorer, self.splitter, self.n_best,
         self.replace_pos_inf, self.replace_neg_inf, self.replace_nan,
         self.predict_proba, self.aggregates, self.aggregate_mode,
         self.scorer_kwargs, self.splitter_kwargs)
@@ -195,11 +182,9 @@ class FeatureEngineer:
         Does:
         Returns:
         """
-        for k, trans in self.best_columns.items():
-            df[trans['column_name']] = trans['transformation_function'](df[trans['x1']], df[trans['x2']])
-
-        for to_replace, value in zip((inf, -inf),
-        (self.replace_pos_inf, self.replace_neg_inf)):
-            df = df.replace(to_replace, value)
+        for feature in self.best_columns.values():
+            df[feature.__name__] = feature.function(df[feature.x1], df[feature.x2])
+            df[feature.__name__] = df[feature.__name__].replace(inf, self.replace_pos_inf)
+            df[feature.__name__] = df[feature.__name__].replace(-inf, self.replace_neg_inf)
 
         return df
