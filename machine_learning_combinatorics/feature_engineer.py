@@ -81,9 +81,10 @@ def define_operator_generator(aggregate_mode):
 
 def define_feature_composer(aggregate_mode):
     """
-    Takes:
-    Does:
-    Returns:
+    Takes: aggregate mode flag
+    Does: based on the aggregate mode flag derives an aggregate feature composer
+    function or an ordinary feature composer function
+    Returns: feature composer function
     """
     if aggregate_mode:
         def feature_composer(properties):
@@ -112,9 +113,18 @@ def derive_feature_combinations(df, y, operators, model, scorer,
 splitter, n_best, replace_pos_inf, replace_neg_inf, replace_nan, predict_proba,
 aggregates, aggregate_mode, scorer_kwargs = None, splitter_kwargs = None):
     """
-    Takes:
-    Does:
-    Returns:
+    Takes: dataframe, target, operators, model, scorer, splitter, number of best
+    columns to return, value to replace +inf, value to replace -inf, value to
+    replace nan, predict probability flag, aggregate operators, aggregate mode
+    flag, scorer keyword arguments, splitter keyword arguments.
+    Does: based on the aggregate mode flag, creates a generator of iterables and
+    a feature composer function. For every property returned by the generator,
+    create a feature using the feature composer function. Create a single column
+    using the feature's transformation function. Split and score the column using
+    the splitter and scorer. Update the n_best columns using the score and the
+    feature object.
+    Returns: Best columns dictionary - they keys are scores, the values are
+    feature objects.
     """
     generate_items = define_operator_generator(aggregate_mode)
     compose_feature = define_feature_composer(aggregate_mode)
@@ -166,9 +176,9 @@ class FeatureEngineer:
 
     def fit(self, df, y):
         """
-        Takes:
-        Does:
-        Returns:
+        Takes: dataframe, target
+        Does: updates the best columns property
+        Returns: N/A
         """
         self.best_columns = derive_feature_combinations(df, y, self.operators,
         self.model, self.scorer, self.splitter, self.n_best,
@@ -178,9 +188,9 @@ class FeatureEngineer:
 
     def transform(self, df):
         """
-        Takes:
-        Does:
-        Returns:
+        Takes: dataframe
+        Does: adds new columns using the best columns property
+        Returns: transformed dataframe
         """
         for feature in self.best_columns.values():
             df[feature.__name__] = feature.function(df[feature.x1], df[feature.x2])
