@@ -1,4 +1,5 @@
 __pycache__/
 *.pyc
-/machine_learning_combinatorics/.ipynb_checkpoints
-/reinforcement_learning_blackjack/.ipynb_checkpoints
+#/machine_learning_combinatorics/.ipynb_checkpoints
+#/reinforcement_learning_blackjack/.ipynb_checkpoints
+/*/.ipynb_checkpoints
